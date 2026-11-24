@@ -1,0 +1,8 @@
+{
+  "name": "Remix RichGrade Single School System",
+  "description": "Complete Basic School Report Card Generation and Academic Performance Analysis System covering KG 1 through JHS 3.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

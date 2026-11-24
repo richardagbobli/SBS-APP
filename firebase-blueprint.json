@@ -1,0 +1,483 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated school staff or parent portal profile and role assignment.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "format": "email", "maxLength": 200 },
+        "displayName": { "type": "string", "maxLength": 120 },
+        "role": {
+          "type": "string",
+          "enum": ["School Administrator", "Headteacher", "Class Teacher", "Subject Teacher", "Academic Coordinator", "Parent", "Pending"]
+        },
+        "schoolId": { "type": "string", "maxLength": 128 },
+        "pupilId": { "type": "string", "maxLength": 128 },
+        "admissionNumber": { "type": "string", "maxLength": 40 },
+        "assignedClassIds": { "type": "array" },
+        "assignedSubjectIds": { "type": "array" },
+        "jhsAssignments": { "type": "array" },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "displayName", "role", "isActive", "createdAt", "updatedAt"]
+    },
+    "SchoolSettings": {
+      "title": "SchoolSettings",
+      "description": "Global school configuration, branding, active academic year/term, report card layout, and policy toggles.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64 },
+        "schoolName": { "type": "string", "maxLength": 150 },
+        "schoolMotto": { "type": "string", "maxLength": 200 },
+        "schoolAddress": { "type": "string", "maxLength": 250 },
+        "schoolTelephone": { "type": "string", "maxLength": 50 },
+        "schoolEmail": { "type": "string", "maxLength": 150 },
+        "logoUrl": { "type": "string", "maxLength": 65000 },
+        "primaryColor": { "type": "string", "maxLength": 20 },
+        "accentColor": { "type": "string", "maxLength": 20 },
+        "headteacherName": { "type": "string", "maxLength": 120 },
+        "academicCoordinatorName": { "type": "string", "maxLength": 120 },
+        "activeAcademicYearId": { "type": "string", "maxLength": 128 },
+        "activeTermId": { "type": "string", "maxLength": 128 },
+        "showPositionRanking": { "type": "boolean" },
+        "enableKgNumeric": { "type": "boolean" },
+        "kgModeDefault": { "type": "string", "enum": ["COMPETENCY", "NUMERIC_SBA", "EITHER"] },
+        "minPassAverage": { "type": "number" },
+        "reportCardTitle": { "type": "string", "maxLength": 160 },
+        "reportHeaderStyle": { "type": "string", "enum": ["classic", "modern", "minimal"] },
+        "showSchoolLogo": { "type": "boolean" },
+        "showSchoolMotto": { "type": "boolean" },
+        "showClassAverage": { "type": "boolean" },
+        "showGradingKey": { "type": "boolean" },
+        "showAttendance": { "type": "boolean" },
+        "showPersonalitySection": { "type": "boolean" },
+        "showPromotionSection": { "type": "boolean" },
+        "showPupilPhoto": { "type": "boolean" },
+        "showSubjectRemarks": { "type": "boolean" },
+        "showReopeningDate": { "type": "boolean" },
+        "showPerformanceAnalysis": { "type": "boolean" },
+        "showTermComparison": { "type": "boolean" },
+        "showVerificationCode": { "type": "boolean" },
+        "showWatermark": { "type": "boolean" },
+        "watermarkText": { "type": "string", "maxLength": 120 },
+        "headteacherSignatureUrl": { "type": "string", "maxLength": 65000 },
+        "teacherSignatureUrl": { "type": "string", "maxLength": 65000 },
+        "parentSignatureUrl": { "type": "string", "maxLength": 65000 },
+        "schoolStampUrl": { "type": "string", "maxLength": 65000 },
+        "parentPublishedOnly": { "type": "boolean" },
+        "teacherSignatureLabel": { "type": "string", "maxLength": 100 },
+        "headteacherSignatureLabel": { "type": "string", "maxLength": 100 },
+        "parentSignatureLabel": { "type": "string", "maxLength": 100 },
+        "reportFooterNote": { "type": "string", "maxLength": 400 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["schoolName", "primaryColor", "accentColor", "showPositionRanking", "enableKgNumeric", "updatedAt"]
+    },
+    "AcademicYear": {
+      "title": "AcademicYear",
+      "description": "School academic year record.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "maxLength": 40 },
+        "startDate": { "type": "string", "maxLength": 20 },
+        "endDate": { "type": "string", "maxLength": 20 },
+        "isCurrent": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["active", "archived"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "startDate", "endDate", "isCurrent", "status", "createdAt"]
+    },
+    "Term": {
+      "title": "Term",
+      "description": "Academic term within an academic year.",
+      "type": "object",
+      "properties": {
+        "academicYearId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "maxLength": 40 },
+        "termNumber": { "type": "integer" },
+        "startDate": { "type": "string", "maxLength": 20 },
+        "endDate": { "type": "string", "maxLength": 20 },
+        "reopeningDate": { "type": "string", "maxLength": 20 },
+        "totalAttendanceDays": { "type": "integer" },
+        "isCurrent": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["academicYearId", "name", "termNumber", "totalAttendanceDays", "isCurrent", "createdAt"]
+    },
+    "SchoolClass": {
+      "title": "SchoolClass",
+      "description": "Basic school class from KG 1 through JHS 3.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "maxLength": 60 },
+        "basicLabel": { "type": "string", "maxLength": 40 },
+        "levelCategory": { "type": "string", "enum": ["KG", "PRIMARY", "JHS"] },
+        "sortOrder": { "type": "integer" },
+        "classTeacherId": { "type": "string", "maxLength": 128 },
+        "classTeacherName": { "type": "string", "maxLength": 120 },
+        "activeSubjectIds": { "type": "array" },
+        "activeLearningAreaIds": { "type": "array" },
+        "assessmentConfigId": { "type": "string", "maxLength": 128 },
+        "gradingScaleId": { "type": "string", "maxLength": 128 },
+        "kgAssessmentMode": { "type": "string", "enum": ["COMPETENCY", "NUMERIC_SBA", "EITHER"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "basicLabel", "levelCategory", "sortOrder", "createdAt"]
+    },
+    "Subject": {
+      "title": "Subject",
+      "description": "Primary and JHS subject definition.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "maxLength": 100 },
+        "code": { "type": "string", "maxLength": 20 },
+        "applicableLevels": { "type": "array" },
+        "isCore": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "code", "applicableLevels", "isCore", "createdAt"]
+    },
+    "LearningArea": {
+      "title": "LearningArea",
+      "description": "Kindergarten competency-based learning area and assessment indicators.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "maxLength": 120 },
+        "subSkills": { "type": "array" },
+        "sortOrder": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "subSkills", "sortOrder", "createdAt"]
+    },
+    "AssessmentConfig": {
+      "title": "AssessmentConfig",
+      "description": "Configurable CA/Exam weightings and KG rating scales.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "maxLength": 100 },
+        "levelCategory": { "type": "string", "enum": ["KG", "PRIMARY", "JHS"] },
+        "caWeight": { "type": "number" },
+        "examWeight": { "type": "number" },
+        "examMaxScore": { "type": "number" },
+        "caComponents": { "type": "array" },
+        "kgScale": { "type": "array" },
+        "isDefault": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "levelCategory", "caWeight", "examWeight", "isDefault", "createdAt"]
+    },
+    "GradingScale": {
+      "title": "GradingScale",
+      "description": "Configurable grade boundaries, descriptions, performance levels, and remarks.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "maxLength": 100 },
+        "levelCategory": { "type": "string", "enum": ["PRIMARY", "JHS", "ALL"] },
+        "boundaries": { "type": "array" },
+        "isDefault": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "levelCategory", "boundaries", "isDefault", "createdAt"]
+    },
+    "Pupil": {
+      "title": "Pupil",
+      "description": "Enrolled basic school pupil profile.",
+      "type": "object",
+      "properties": {
+        "admissionNumber": { "type": "string", "maxLength": 40 },
+        "firstName": { "type": "string", "maxLength": 80 },
+        "lastName": { "type": "string", "maxLength": 80 },
+        "otherNames": { "type": "string", "maxLength": 80 },
+        "fullName": { "type": "string", "maxLength": 200 },
+        "gender": { "type": "string", "enum": ["Male", "Female"] },
+        "dateOfBirth": { "type": "string", "maxLength": 20 },
+        "currentClassId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "currentClassName": { "type": "string", "maxLength": 60 },
+        "guardianName": { "type": "string", "maxLength": 120 },
+        "guardianPhone": { "type": "string", "maxLength": 40 },
+        "photoUrl": { "type": "string", "maxLength": 65000 },
+        "parentSignatureUrl": { "type": "string", "maxLength": 65000 },
+        "enrollmentStatus": { "type": "string", "enum": ["Active", "Graduated", "Transferred", "Withdrawn"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["admissionNumber", "firstName", "lastName", "fullName", "gender", "currentClassId", "enrollmentStatus", "createdAt", "updatedAt"]
+    },
+    "AssessmentRecord": {
+      "title": "AssessmentRecord",
+      "description": "Primary & JHS subject continuous assessment and examination record.",
+      "type": "object",
+      "properties": {
+        "pupilId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "classId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "academicYearId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "termId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "subjectId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "subjectName": { "type": "string", "maxLength": 100 },
+        "componentScores": { "type": "array" },
+        "caRawScore": { "type": "number" },
+        "caMaxScore": { "type": "number" },
+        "caContribution": { "type": "number" },
+        "examRawScore": { "type": "number" },
+        "examMaxScore": { "type": "number" },
+        "examContribution": { "type": "number" },
+        "totalScore": { "type": "number" },
+        "grade": { "type": "string", "maxLength": 20 },
+        "gradeDescription": { "type": "string", "maxLength": 100 },
+        "performanceLevel": { "type": "string", "maxLength": 100 },
+        "subjectRemark": { "type": "string", "maxLength": 400 },
+        "updatedBy": { "type": "string", "maxLength": 128 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["pupilId", "classId", "academicYearId", "termId", "subjectId", "totalScore", "grade", "updatedBy", "updatedAt"]
+    },
+    "CompetencyRating": {
+      "title": "CompetencyRating",
+      "description": "Kindergarten competency-based ratings across configured learning areas.",
+      "type": "object",
+      "properties": {
+        "pupilId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "classId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "academicYearId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "termId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "learningAreaRatings": { "type": "array" },
+        "overallAverageRating": { "type": "number" },
+        "summaryComment": { "type": "string", "maxLength": 600 },
+        "updatedBy": { "type": "string", "maxLength": 128 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["pupilId", "classId", "academicYearId", "termId", "learningAreaRatings", "updatedBy", "updatedAt"]
+    },
+    "PersonalityAssessment": {
+      "title": "PersonalityAssessment",
+      "description": "Personal development, character traits, and attendance summary for a pupil in a term.",
+      "type": "object",
+      "properties": {
+        "pupilId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "classId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "academicYearId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "termId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "traits": { "type": "array" },
+        "attendancePresent": { "type": "integer" },
+        "attendanceTotal": { "type": "integer" },
+        "conductSummary": { "type": "string", "maxLength": 400 },
+        "attitude": { "type": "string", "maxLength": 200 },
+        "interest": { "type": "string", "maxLength": 200 },
+        "updatedBy": { "type": "string", "maxLength": 128 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["pupilId", "classId", "academicYearId", "termId", "traits", "attendancePresent", "attendanceTotal", "updatedBy", "updatedAt"]
+    },
+    "ReportCard": {
+      "title": "ReportCard",
+      "description": "Generated termly report card with approval workflow state and remarks.",
+      "type": "object",
+      "properties": {
+        "pupilId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "pupilName": { "type": "string", "maxLength": 200 },
+        "admissionNumber": { "type": "string", "maxLength": 40 },
+        "gender": { "type": "string", "maxLength": 20 },
+        "photoUrl": { "type": "string", "maxLength": 65000 },
+        "classId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "className": { "type": "string", "maxLength": 60 },
+        "levelCategory": { "type": "string", "enum": ["KG", "PRIMARY", "JHS"] },
+        "assessmentMode": { "type": "string", "enum": ["COMPETENCY", "NUMERIC_SBA"] },
+        "academicYearId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "academicYearName": { "type": "string", "maxLength": 40 },
+        "termId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "termName": { "type": "string", "maxLength": 40 },
+        "overallAverage": { "type": "number" },
+        "classAverage": { "type": "number" },
+        "classPosition": { "type": "integer" },
+        "totalPupilsInClass": { "type": "integer" },
+        "subjectSnapshots": { "type": "array" },
+        "kgSnapshots": { "type": "array" },
+        "personalitySnapshot": { "type": "object" },
+        "attendancePresent": { "type": "integer" },
+        "attendanceTotal": { "type": "integer" },
+        "teacherRemarks": { "type": "string", "maxLength": 1000 },
+        "strengthNotes": { "type": "string", "maxLength": 600 },
+        "improvementNotes": { "type": "string", "maxLength": 600 },
+        "parentRecommendation": { "type": "string", "maxLength": 600 },
+        "aiGeneratedDraft": { "type": "boolean" },
+        "aiReviewedApproved": { "type": "boolean" },
+        "headteacherRemarks": { "type": "string", "maxLength": 1000 },
+        "promotionStatus": { "type": "string", "enum": ["Promoted", "Repeated", "Promoted on Probation", "Graduated", "Pending"] },
+        "nextClassName": { "type": "string", "maxLength": 60 },
+        "reopeningDate": { "type": "string", "maxLength": 40 },
+        "status": { "type": "string", "enum": ["Draft", "Submitted", "Returned for Correction", "Approved", "Published"] },
+        "returnReason": { "type": "string", "maxLength": 500 },
+        "teacherSignatureUrl": { "type": "string", "maxLength": 65000 },
+        "headteacherSignatureUrl": { "type": "string", "maxLength": 65000 },
+        "parentSignatureUrl": { "type": "string", "maxLength": 65000 },
+        "submittedBy": { "type": "string", "maxLength": 128 },
+        "reviewedBy": { "type": "string", "maxLength": 128 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["pupilId", "classId", "levelCategory", "academicYearId", "termId", "status", "updatedAt"]
+    },
+    "PromotionRecord": {
+      "title": "PromotionRecord",
+      "description": "Authorized academic year promotion, retention, or graduation record.",
+      "type": "object",
+      "properties": {
+        "pupilId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "pupilName": { "type": "string", "maxLength": 200 },
+        "fromClassId": { "type": "string", "maxLength": 128 },
+        "fromClassName": { "type": "string", "maxLength": 60 },
+        "toClassId": { "type": "string", "maxLength": 128 },
+        "toClassName": { "type": "string", "maxLength": 60 },
+        "academicYearId": { "type": "string", "maxLength": 128 },
+        "decision": { "type": "string", "enum": ["Promoted", "Retained", "Graduated", "Returned"] },
+        "notes": { "type": "string", "maxLength": 400 },
+        "decidedBy": { "type": "string", "maxLength": 128 },
+        "decidedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["pupilId", "fromClassId", "academicYearId", "decision", "decidedBy", "decidedAt"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Immutable operational audit log for administrative actions.",
+      "type": "object",
+      "properties": {
+        "actorUid": { "type": "string", "maxLength": 128 },
+        "actorName": { "type": "string", "maxLength": 120 },
+        "actorEmail": { "type": "string", "maxLength": 200 },
+        "actorRole": { "type": "string", "maxLength": 60 },
+        "action": { "type": "string", "maxLength": 100 },
+        "targetCollection": { "type": "string", "maxLength": 80 },
+        "targetId": { "type": "string", "maxLength": 128 },
+        "summary": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["actorUid", "action", "targetCollection", "targetId", "createdAt"]
+    },
+    "School": {
+      "title": "School",
+      "description": "Registered basic school portal metadata (secrets stay strictly server-side).",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "maxLength": 150 },
+        "code": { "type": "string", "maxLength": 20 },
+        "motto": { "type": "string", "maxLength": 200 },
+        "address": { "type": "string", "maxLength": 250 },
+        "telephone": { "type": "string", "maxLength": 50 },
+        "email": { "type": "string", "maxLength": 150 },
+        "logoUrl": { "type": "string", "maxLength": 65000 },
+        "primaryColor": { "type": "string", "maxLength": 20 },
+        "accentColor": { "type": "string", "maxLength": 20 },
+        "headteacherName": { "type": "string", "maxLength": 120 },
+        "academicCoordinatorName": { "type": "string", "maxLength": 120 },
+        "hasKg": { "type": "boolean" },
+        "hasPrimary": { "type": "boolean" },
+        "hasJhs": { "type": "boolean" },
+        "isLocked": { "type": "boolean" },
+        "lockNotice": { "type": "string", "maxLength": 500 },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "primaryColor", "accentColor", "isActive", "createdAt", "updatedAt"]
+    },
+    "TeacherAccount": {
+      "title": "TeacherAccount",
+      "description": "Registered school teacher with class and JHS subject assignments.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "schoolId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "fullName": { "type": "string", "maxLength": 150 },
+        "staffId": { "type": "string", "maxLength": 40 },
+        "email": { "type": "string", "maxLength": 150 },
+        "phone": { "type": "string", "maxLength": 40 },
+        "teacherType": { "type": "string", "enum": ["CLASS", "JHS"] },
+        "assignedClassIds": { "type": "array" },
+        "assignedSubjectIds": { "type": "array" },
+        "jhsAssignments": { "type": "array" },
+        "signatureUrl": { "type": "string", "maxLength": 65000 },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["schoolId", "fullName", "teacherType", "isActive", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Staff user accounts and RBAC roles."
+    },
+    "/schools/{schoolId}": {
+      "schema": { "$ref": "#/entities/School" },
+      "description": "Registered basic school metadata."
+    },
+    "/teachers/{teacherId}": {
+      "schema": { "$ref": "#/entities/TeacherAccount" },
+      "description": "Registered teachers and their class/JHS subject assignments."
+    },
+    "/schoolSettings/{settingId}": {
+      "schema": { "$ref": "#/entities/SchoolSettings" },
+      "description": "School branding and global assessment policies."
+    },
+    "/academicYears/{yearId}": {
+      "schema": { "$ref": "#/entities/AcademicYear" },
+      "description": "Academic year definitions."
+    },
+    "/terms/{termId}": {
+      "schema": { "$ref": "#/entities/Term" },
+      "description": "Academic term definitions."
+    },
+    "/classes/{classId}": {
+      "schema": { "$ref": "#/entities/SchoolClass" },
+      "description": "Classes from KG 1 through JHS 3."
+    },
+    "/subjects/{subjectId}": {
+      "schema": { "$ref": "#/entities/Subject" },
+      "description": "Subject catalog for Primary and JHS."
+    },
+    "/learningAreas/{areaId}": {
+      "schema": { "$ref": "#/entities/LearningArea" },
+      "description": "Kindergarten learning areas and sub-skills."
+    },
+    "/assessmentConfigs/{configId}": {
+      "schema": { "$ref": "#/entities/AssessmentConfig" },
+      "description": "Continuous assessment and examination weighting configurations."
+    },
+    "/gradingScales/{scaleId}": {
+      "schema": { "$ref": "#/entities/GradingScale" },
+      "description": "Configurable grade boundaries and descriptions."
+    },
+    "/pupils/{pupilId}": {
+      "schema": { "$ref": "#/entities/Pupil" },
+      "description": "Pupil profiles and current enrollment."
+    },
+    "/assessmentRecords/{recordId}": {
+      "schema": { "$ref": "#/entities/AssessmentRecord" },
+      "description": "Primary and JHS subject assessment records."
+    },
+    "/competencyRatings/{ratingId}": {
+      "schema": { "$ref": "#/entities/CompetencyRating" },
+      "description": "Kindergarten competency-based assessment records."
+    },
+    "/personalityAssessments/{assessmentId}": {
+      "schema": { "$ref": "#/entities/PersonalityAssessment" },
+      "description": "Personal development, behavior, and attendance records."
+    },
+    "/reportCards/{reportId}": {
+      "schema": { "$ref": "#/entities/ReportCard" },
+      "description": "Generated report cards and approval workflow state."
+    },
+    "/promotionRecords/{promoId}": {
+      "schema": { "$ref": "#/entities/PromotionRecord" },
+      "description": "Authorized promotion, retention, and graduation history."
+    },
+    "/auditLogs/{logId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "Append-only operational audit logs."
+    }
+  }
+}

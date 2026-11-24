@@ -1,0 +1,702 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // =========================================================================
+    // Global Helper Primitives
+    // =========================================================================
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(uid) {
+      return isVerified() && request.auth.uid == uid;
+    }
+
+    function isBootstrapAdmin() {
+      return isVerified() && request.auth.token.email == 'richardagbobli6@gmail.com';
+    }
+
+    function userPath() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
+    }
+
+    function hasUserDoc() {
+      return exists(userPath());
+    }
+
+    function currentUser() {
+      return get(userPath()).data;
+    }
+
+    function isActiveStaff() {
+      return isBootstrapAdmin() || (hasUserDoc() && currentUser().isActive == true && currentUser().role != 'Pending');
+    }
+
+    function hasRole(roleName) {
+      return isVerified() && hasUserDoc() && currentUser().isActive == true && currentUser().role == roleName;
+    }
+
+    function isSchoolAdmin() {
+      return isBootstrapAdmin() || hasRole('School Administrator');
+    }
+
+    function isHeadteacher() {
+      return hasRole('Headteacher');
+    }
+
+    function isAcademicCoordinator() {
+      return hasRole('Academic Coordinator');
+    }
+
+    function isLeadership() {
+      return isSchoolAdmin() || isHeadteacher() || isAcademicCoordinator();
+    }
+
+    function isClassTeacherFor(classId) {
+      return hasRole('Class Teacher') && (classId in currentUser().assignedClassIds);
+    }
+
+    function isSubjectTeacherFor(classId, subjectId) {
+      return hasRole('Subject Teacher')
+        && (classId in currentUser().assignedClassIds)
+        && (subjectId in currentUser().assignedSubjectIds);
+    }
+
+    function isNonEmptyString(val, maxLen) {
+      return val is string && val.size() >= 1 && val.size() <= maxLen;
+    }
+
+    function isOptionalString(val, maxLen) {
+      return val is string && val.size() <= maxLen;
+    }
+
+    function isBoundedList(val, maxSize) {
+      return val is list && val.size() <= maxSize;
+    }
+
+    // =========================================================================
+    // Entity Validation Blueprints
+    // =========================================================================
+
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['uid', 'email', 'displayName', 'role', 'isActive', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'displayName', 'role', 'schoolId', 'pupilId', 'admissionNumber', 'assignedClassIds', 'assignedSubjectIds', 'jhsAssignments', 'isActive', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && isNonEmptyString(data.email, 200)
+        && isNonEmptyString(data.displayName, 120)
+        && data.role in ['School Administrator', 'Headteacher', 'Class Teacher', 'Subject Teacher', 'Academic Coordinator', 'Parent', 'Pending']
+        && data.isActive is bool
+        && (!('schoolId' in data) || isOptionalString(data.schoolId, 128))
+        && (!('pupilId' in data) || isOptionalString(data.pupilId, 128))
+        && (!('admissionNumber' in data) || isOptionalString(data.admissionNumber, 40))
+        && (!('assignedClassIds' in data) || isBoundedList(data.assignedClassIds, 30))
+        && (!('assignedSubjectIds' in data) || isBoundedList(data.assignedSubjectIds, 40))
+        && (!('jhsAssignments' in data) || isBoundedList(data.jhsAssignments, 60))
+        && isNonEmptyString(data.createdAt, 64)
+        && isNonEmptyString(data.updatedAt, 64);
+    }
+
+    function isValidSchoolSettings(data) {
+      return data.keys().hasAll(['schoolName', 'primaryColor', 'accentColor', 'showPositionRanking', 'enableKgNumeric', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'schoolName', 'schoolMotto', 'schoolAddress', 'schoolTelephone', 'schoolEmail', 'logoUrl', 'primaryColor', 'accentColor', 'headteacherName', 'academicCoordinatorName', 'activeAcademicYearId', 'activeTermId', 'showPositionRanking', 'enableKgNumeric', 'kgModeDefault', 'minPassAverage', 'reportCardTitle', 'reportHeaderStyle', 'showSchoolLogo', 'showSchoolMotto', 'showClassAverage', 'showGradingKey', 'showAttendance', 'showPersonalitySection', 'showPromotionSection', 'showPupilPhoto', 'showSubjectRemarks', 'showReopeningDate', 'showPerformanceAnalysis', 'showTermComparison', 'showVerificationCode', 'showWatermark', 'watermarkText', 'headteacherSignatureUrl', 'teacherSignatureUrl', 'parentSignatureUrl', 'schoolStampUrl', 'parentPublishedOnly', 'teacherSignatureLabel', 'headteacherSignatureLabel', 'parentSignatureLabel', 'reportFooterNote', 'updatedAt'])
+        && isNonEmptyString(data.schoolName, 150)
+        && isNonEmptyString(data.primaryColor, 20)
+        && isNonEmptyString(data.accentColor, 20)
+        && data.showPositionRanking is bool
+        && data.enableKgNumeric is bool
+        && (!('kgModeDefault' in data) || data.kgModeDefault in ['COMPETENCY', 'NUMERIC_SBA', 'EITHER'])
+        && (!('id' in data) || isOptionalString(data.id, 64))
+        && (!('schoolMotto' in data) || isOptionalString(data.schoolMotto, 200))
+        && (!('schoolAddress' in data) || isOptionalString(data.schoolAddress, 250))
+        && (!('schoolTelephone' in data) || isOptionalString(data.schoolTelephone, 50))
+        && (!('schoolEmail' in data) || isOptionalString(data.schoolEmail, 150))
+        && (!('logoUrl' in data) || isOptionalString(data.logoUrl, 65000))
+        && (!('headteacherName' in data) || isOptionalString(data.headteacherName, 120))
+        && (!('academicCoordinatorName' in data) || isOptionalString(data.academicCoordinatorName, 120))
+        && (!('activeAcademicYearId' in data) || isOptionalString(data.activeAcademicYearId, 128))
+        && (!('activeTermId' in data) || isOptionalString(data.activeTermId, 128))
+        && (!('minPassAverage' in data) || (data.minPassAverage is number && data.minPassAverage >= 0 && data.minPassAverage <= 100))
+        && (!('reportCardTitle' in data) || isOptionalString(data.reportCardTitle, 160))
+        && (!('reportHeaderStyle' in data) || data.reportHeaderStyle in ['classic', 'modern', 'minimal'])
+        && (!('showSchoolLogo' in data) || data.showSchoolLogo is bool)
+        && (!('showSchoolMotto' in data) || data.showSchoolMotto is bool)
+        && (!('showClassAverage' in data) || data.showClassAverage is bool)
+        && (!('showGradingKey' in data) || data.showGradingKey is bool)
+        && (!('showAttendance' in data) || data.showAttendance is bool)
+        && (!('showPersonalitySection' in data) || data.showPersonalitySection is bool)
+        && (!('showPromotionSection' in data) || data.showPromotionSection is bool)
+        && (!('showPupilPhoto' in data) || data.showPupilPhoto is bool)
+        && (!('showSubjectRemarks' in data) || data.showSubjectRemarks is bool)
+        && (!('showReopeningDate' in data) || data.showReopeningDate is bool)
+        && (!('showPerformanceAnalysis' in data) || data.showPerformanceAnalysis is bool)
+        && (!('showTermComparison' in data) || data.showTermComparison is bool)
+        && (!('showVerificationCode' in data) || data.showVerificationCode is bool)
+        && (!('showWatermark' in data) || data.showWatermark is bool)
+        && (!('watermarkText' in data) || isOptionalString(data.watermarkText, 120))
+        && (!('headteacherSignatureUrl' in data) || isOptionalString(data.headteacherSignatureUrl, 65000))
+        && (!('teacherSignatureUrl' in data) || isOptionalString(data.teacherSignatureUrl, 65000))
+        && (!('parentSignatureUrl' in data) || isOptionalString(data.parentSignatureUrl, 65000))
+        && (!('schoolStampUrl' in data) || isOptionalString(data.schoolStampUrl, 65000))
+        && (!('parentPublishedOnly' in data) || data.parentPublishedOnly is bool)
+        && (!('teacherSignatureLabel' in data) || isOptionalString(data.teacherSignatureLabel, 100))
+        && (!('headteacherSignatureLabel' in data) || isOptionalString(data.headteacherSignatureLabel, 100))
+        && (!('parentSignatureLabel' in data) || isOptionalString(data.parentSignatureLabel, 100))
+        && (!('reportFooterNote' in data) || isOptionalString(data.reportFooterNote, 400))
+        && isNonEmptyString(data.updatedAt, 64);
+    }
+
+    function isValidAcademicYear(data) {
+      return data.keys().hasAll(['name', 'startDate', 'endDate', 'isCurrent', 'status', 'createdAt'])
+        && data.keys().hasOnly(['name', 'startDate', 'endDate', 'isCurrent', 'status', 'createdAt'])
+        && isNonEmptyString(data.name, 40)
+        && isNonEmptyString(data.startDate, 20)
+        && isNonEmptyString(data.endDate, 20)
+        && data.isCurrent is bool
+        && data.status in ['active', 'archived']
+        && isNonEmptyString(data.createdAt, 64);
+    }
+
+    function isValidTerm(data) {
+      return data.keys().hasAll(['academicYearId', 'name', 'termNumber', 'totalAttendanceDays', 'isCurrent', 'createdAt'])
+        && data.keys().hasOnly(['academicYearId', 'name', 'termNumber', 'startDate', 'endDate', 'reopeningDate', 'totalAttendanceDays', 'isCurrent', 'createdAt'])
+        && isValidId(data.academicYearId)
+        && isNonEmptyString(data.name, 40)
+        && data.termNumber is int && data.termNumber >= 1 && data.termNumber <= 3
+        && data.totalAttendanceDays is int && data.totalAttendanceDays >= 1 && data.totalAttendanceDays <= 250
+        && data.isCurrent is bool
+        && (!('startDate' in data) || isOptionalString(data.startDate, 20))
+        && (!('endDate' in data) || isOptionalString(data.endDate, 20))
+        && (!('reopeningDate' in data) || isOptionalString(data.reopeningDate, 20))
+        && isNonEmptyString(data.createdAt, 64);
+    }
+
+    function isValidSchoolClass(data) {
+      return data.keys().hasAll(['name', 'basicLabel', 'levelCategory', 'sortOrder', 'createdAt'])
+        && data.keys().hasOnly(['name', 'basicLabel', 'levelCategory', 'sortOrder', 'classTeacherId', 'classTeacherName', 'activeSubjectIds', 'activeLearningAreaIds', 'assessmentConfigId', 'gradingScaleId', 'kgAssessmentMode', 'createdAt'])
+        && isNonEmptyString(data.name, 60)
+        && isNonEmptyString(data.basicLabel, 40)
+        && data.levelCategory in ['KG', 'PRIMARY', 'JHS']
+        && data.sortOrder is int && data.sortOrder >= 1 && data.sortOrder <= 100
+        && (!('classTeacherId' in data) || isOptionalString(data.classTeacherId, 128))
+        && (!('classTeacherName' in data) || isOptionalString(data.classTeacherName, 120))
+        && (!('activeSubjectIds' in data) || isBoundedList(data.activeSubjectIds, 40))
+        && (!('activeLearningAreaIds' in data) || isBoundedList(data.activeLearningAreaIds, 30))
+        && (!('assessmentConfigId' in data) || isOptionalString(data.assessmentConfigId, 128))
+        && (!('gradingScaleId' in data) || isOptionalString(data.gradingScaleId, 128))
+        && (!('kgAssessmentMode' in data) || data.kgAssessmentMode in ['COMPETENCY', 'NUMERIC_SBA', 'EITHER'])
+        && isNonEmptyString(data.createdAt, 64);
+    }
+
+    function isValidSubject(data) {
+      return data.keys().hasAll(['name', 'code', 'applicableLevels', 'isCore', 'createdAt'])
+        && data.keys().hasOnly(['name', 'code', 'applicableLevels', 'isCore', 'createdAt'])
+        && isNonEmptyString(data.name, 100)
+        && isNonEmptyString(data.code, 20)
+        && isBoundedList(data.applicableLevels, 5)
+        && data.isCore is bool
+        && isNonEmptyString(data.createdAt, 64);
+    }
+
+    function isValidLearningArea(data) {
+      return data.keys().hasAll(['name', 'subSkills', 'sortOrder', 'createdAt'])
+        && data.keys().hasOnly(['name', 'subSkills', 'sortOrder', 'createdAt'])
+        && isNonEmptyString(data.name, 120)
+        && isBoundedList(data.subSkills, 25)
+        && data.sortOrder is int && data.sortOrder >= 1 && data.sortOrder <= 100
+        && isNonEmptyString(data.createdAt, 64);
+    }
+
+    function isValidAssessmentConfig(data) {
+      return data.keys().hasAll(['name', 'levelCategory', 'caWeight', 'examWeight', 'isDefault', 'createdAt'])
+        && data.keys().hasOnly(['name', 'levelCategory', 'caWeight', 'examWeight', 'examMaxScore', 'caComponents', 'kgScale', 'isDefault', 'createdAt'])
+        && isNonEmptyString(data.name, 100)
+        && data.levelCategory in ['KG', 'PRIMARY', 'JHS']
+        && data.caWeight is number && data.caWeight >= 0 && data.caWeight <= 100
+        && data.examWeight is number && data.examWeight >= 0 && data.examWeight <= 100
+        && data.isDefault is bool
+        && (!('examMaxScore' in data) || (data.examMaxScore is number && data.examMaxScore > 0 && data.examMaxScore <= 500))
+        && (!('caComponents' in data) || isBoundedList(data.caComponents, 20))
+        && (!('kgScale' in data) || isBoundedList(data.kgScale, 10))
+        && isNonEmptyString(data.createdAt, 64);
+    }
+
+    function isValidGradingScale(data) {
+      return data.keys().hasAll(['name', 'levelCategory', 'boundaries', 'isDefault', 'createdAt'])
+        && data.keys().hasOnly(['name', 'levelCategory', 'boundaries', 'isDefault', 'createdAt'])
+        && isNonEmptyString(data.name, 100)
+        && data.levelCategory in ['PRIMARY', 'JHS', 'ALL']
+        && isBoundedList(data.boundaries, 20)
+        && data.isDefault is bool
+        && isNonEmptyString(data.createdAt, 64);
+    }
+
+    function isValidPupil(data) {
+      return data.keys().hasAll(['admissionNumber', 'firstName', 'lastName', 'fullName', 'gender', 'currentClassId', 'enrollmentStatus', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['admissionNumber', 'firstName', 'lastName', 'otherNames', 'fullName', 'gender', 'dateOfBirth', 'currentClassId', 'currentClassName', 'guardianName', 'guardianPhone', 'photoUrl', 'parentSignatureUrl', 'enrollmentStatus', 'createdAt', 'updatedAt'])
+        && isNonEmptyString(data.admissionNumber, 40)
+        && isNonEmptyString(data.firstName, 80)
+        && isNonEmptyString(data.lastName, 80)
+        && (!('otherNames' in data) || isOptionalString(data.otherNames, 80))
+        && isNonEmptyString(data.fullName, 200)
+        && data.gender in ['Male', 'Female']
+        && (!('dateOfBirth' in data) || isOptionalString(data.dateOfBirth, 20))
+        && isValidId(data.currentClassId)
+        && (!('currentClassName' in data) || isOptionalString(data.currentClassName, 60))
+        && (!('guardianName' in data) || isOptionalString(data.guardianName, 120))
+        && (!('guardianPhone' in data) || isOptionalString(data.guardianPhone, 40))
+        && (!('photoUrl' in data) || isOptionalString(data.photoUrl, 65000))
+        && (!('parentSignatureUrl' in data) || isOptionalString(data.parentSignatureUrl, 65000))
+        && data.enrollmentStatus in ['Active', 'Graduated', 'Transferred', 'Withdrawn']
+        && isNonEmptyString(data.createdAt, 64)
+        && isNonEmptyString(data.updatedAt, 64);
+    }
+
+    function isValidAssessmentRecord(data) {
+      return data.keys().hasAll(['pupilId', 'classId', 'academicYearId', 'termId', 'subjectId', 'totalScore', 'grade', 'updatedBy', 'updatedAt'])
+        && data.keys().hasOnly(['pupilId', 'classId', 'academicYearId', 'termId', 'subjectId', 'subjectName', 'componentScores', 'caRawScore', 'caMaxScore', 'caContribution', 'examRawScore', 'examMaxScore', 'examContribution', 'totalScore', 'grade', 'gradeDescription', 'performanceLevel', 'subjectRemark', 'updatedBy', 'updatedAt'])
+        && isValidId(data.pupilId)
+        && isValidId(data.classId)
+        && isValidId(data.academicYearId)
+        && isValidId(data.termId)
+        && isValidId(data.subjectId)
+        && (!('subjectName' in data) || isOptionalString(data.subjectName, 100))
+        && (!('componentScores' in data) || isBoundedList(data.componentScores, 20))
+        && (!('caRawScore' in data) || (data.caRawScore is number && data.caRawScore >= 0 && data.caRawScore <= 1000))
+        && (!('caMaxScore' in data) || (data.caMaxScore is number && data.caMaxScore > 0 && data.caMaxScore <= 1000))
+        && (!('caContribution' in data) || (data.caContribution is number && data.caContribution >= 0 && data.caContribution <= 100))
+        && (!('examRawScore' in data) || (data.examRawScore is number && data.examRawScore >= 0 && data.examRawScore <= 1000))
+        && (!('examMaxScore' in data) || (data.examMaxScore is number && data.examMaxScore > 0 && data.examMaxScore <= 1000))
+        && (!('examContribution' in data) || (data.examContribution is number && data.examContribution >= 0 && data.examContribution <= 100))
+        && data.totalScore is number && data.totalScore >= 0 && data.totalScore <= 100
+        && isNonEmptyString(data.grade, 20)
+        && (!('gradeDescription' in data) || isOptionalString(data.gradeDescription, 100))
+        && (!('performanceLevel' in data) || isOptionalString(data.performanceLevel, 100))
+        && (!('subjectRemark' in data) || isOptionalString(data.subjectRemark, 400))
+        && isValidId(data.updatedBy)
+        && isNonEmptyString(data.updatedAt, 64);
+    }
+
+    function isValidCompetencyRating(data) {
+      return data.keys().hasAll(['pupilId', 'classId', 'academicYearId', 'termId', 'learningAreaRatings', 'updatedBy', 'updatedAt'])
+        && data.keys().hasOnly(['pupilId', 'classId', 'academicYearId', 'termId', 'learningAreaRatings', 'overallAverageRating', 'summaryComment', 'updatedBy', 'updatedAt'])
+        && isValidId(data.pupilId)
+        && isValidId(data.classId)
+        && isValidId(data.academicYearId)
+        && isValidId(data.termId)
+        && isBoundedList(data.learningAreaRatings, 30)
+        && (!('overallAverageRating' in data) || (data.overallAverageRating is number && data.overallAverageRating >= 0 && data.overallAverageRating <= 10))
+        && (!('summaryComment' in data) || isOptionalString(data.summaryComment, 600))
+        && isValidId(data.updatedBy)
+        && isNonEmptyString(data.updatedAt, 64);
+    }
+
+    function isValidPersonalityAssessment(data) {
+      return data.keys().hasAll(['pupilId', 'classId', 'academicYearId', 'termId', 'traits', 'attendancePresent', 'attendanceTotal', 'updatedBy', 'updatedAt'])
+        && data.keys().hasOnly(['pupilId', 'classId', 'academicYearId', 'termId', 'traits', 'attendancePresent', 'attendanceTotal', 'conductSummary', 'attitude', 'interest', 'updatedBy', 'updatedAt'])
+        && isValidId(data.pupilId)
+        && isValidId(data.classId)
+        && isValidId(data.academicYearId)
+        && isValidId(data.termId)
+        && isBoundedList(data.traits, 25)
+        && data.attendancePresent is int && data.attendancePresent >= 0 && data.attendancePresent <= 250
+        && data.attendanceTotal is int && data.attendanceTotal >= 1 && data.attendanceTotal <= 250
+        && (!('conductSummary' in data) || isOptionalString(data.conductSummary, 400))
+        && (!('attitude' in data) || isOptionalString(data.attitude, 200))
+        && (!('interest' in data) || isOptionalString(data.interest, 200))
+        && isValidId(data.updatedBy)
+        && isNonEmptyString(data.updatedAt, 64);
+    }
+
+    function isValidReportCard(data) {
+      return data.keys().hasAll(['pupilId', 'classId', 'levelCategory', 'academicYearId', 'termId', 'status', 'updatedAt'])
+        && data.keys().hasOnly(['pupilId', 'pupilName', 'admissionNumber', 'gender', 'photoUrl', 'classId', 'className', 'levelCategory', 'assessmentMode', 'academicYearId', 'academicYearName', 'termId', 'termName', 'overallAverage', 'classAverage', 'classPosition', 'totalPupilsInClass', 'subjectSnapshots', 'kgSnapshots', 'personalitySnapshot', 'attendancePresent', 'attendanceTotal', 'teacherRemarks', 'strengthNotes', 'improvementNotes', 'parentRecommendation', 'aiGeneratedDraft', 'aiReviewedApproved', 'headteacherRemarks', 'promotionStatus', 'nextClassName', 'reopeningDate', 'status', 'returnReason', 'teacherSignatureUrl', 'headteacherSignatureUrl', 'parentSignatureUrl', 'submittedBy', 'reviewedBy', 'updatedAt'])
+        && isValidId(data.pupilId)
+        && isValidId(data.classId)
+        && data.levelCategory in ['KG', 'PRIMARY', 'JHS']
+        && (!('assessmentMode' in data) || data.assessmentMode in ['COMPETENCY', 'NUMERIC_SBA'])
+        && isValidId(data.academicYearId)
+        && isValidId(data.termId)
+        && data.status in ['Draft', 'Submitted', 'Returned for Correction', 'Approved', 'Published']
+        && (!('pupilName' in data) || isOptionalString(data.pupilName, 200))
+        && (!('admissionNumber' in data) || isOptionalString(data.admissionNumber, 40))
+        && (!('gender' in data) || isOptionalString(data.gender, 20))
+        && (!('photoUrl' in data) || isOptionalString(data.photoUrl, 65000))
+        && (!('className' in data) || isOptionalString(data.className, 60))
+        && (!('academicYearName' in data) || isOptionalString(data.academicYearName, 40))
+        && (!('termName' in data) || isOptionalString(data.termName, 40))
+        && (!('overallAverage' in data) || (data.overallAverage is number && data.overallAverage >= 0 && data.overallAverage <= 100))
+        && (!('classAverage' in data) || (data.classAverage is number && data.classAverage >= 0 && data.classAverage <= 100))
+        && (!('classPosition' in data) || (data.classPosition is int && data.classPosition >= 0 && data.classPosition <= 1000))
+        && (!('totalPupilsInClass' in data) || (data.totalPupilsInClass is int && data.totalPupilsInClass >= 0 && data.totalPupilsInClass <= 1000))
+        && (!('subjectSnapshots' in data) || isBoundedList(data.subjectSnapshots, 40))
+        && (!('kgSnapshots' in data) || isBoundedList(data.kgSnapshots, 30))
+        && (!('personalitySnapshot' in data) || data.personalitySnapshot is map)
+        && (!('attendancePresent' in data) || (data.attendancePresent is int && data.attendancePresent >= 0 && data.attendancePresent <= 250))
+        && (!('attendanceTotal' in data) || (data.attendanceTotal is int && data.attendanceTotal >= 0 && data.attendanceTotal <= 250))
+        && (!('teacherRemarks' in data) || isOptionalString(data.teacherRemarks, 1000))
+        && (!('strengthNotes' in data) || isOptionalString(data.strengthNotes, 600))
+        && (!('improvementNotes' in data) || isOptionalString(data.improvementNotes, 600))
+        && (!('parentRecommendation' in data) || isOptionalString(data.parentRecommendation, 600))
+        && (!('aiGeneratedDraft' in data) || data.aiGeneratedDraft is bool)
+        && (!('aiReviewedApproved' in data) || data.aiReviewedApproved is bool)
+        && (!('headteacherRemarks' in data) || isOptionalString(data.headteacherRemarks, 1000))
+        && (!('promotionStatus' in data) || data.promotionStatus in ['Promoted', 'Repeated', 'Promoted on Probation', 'Graduated', 'Pending'])
+        && (!('nextClassName' in data) || isOptionalString(data.nextClassName, 60))
+        && (!('reopeningDate' in data) || isOptionalString(data.reopeningDate, 40))
+        && (!('returnReason' in data) || isOptionalString(data.returnReason, 500))
+        && (!('teacherSignatureUrl' in data) || isOptionalString(data.teacherSignatureUrl, 65000))
+        && (!('headteacherSignatureUrl' in data) || isOptionalString(data.headteacherSignatureUrl, 65000))
+        && (!('parentSignatureUrl' in data) || isOptionalString(data.parentSignatureUrl, 65000))
+        && (!('submittedBy' in data) || isOptionalString(data.submittedBy, 128))
+        && (!('reviewedBy' in data) || isOptionalString(data.reviewedBy, 128))
+        && isNonEmptyString(data.updatedAt, 64);
+    }
+
+    function isValidPromotionRecord(data) {
+      return data.keys().hasAll(['pupilId', 'fromClassId', 'academicYearId', 'decision', 'decidedBy', 'decidedAt'])
+        && data.keys().hasOnly(['pupilId', 'pupilName', 'fromClassId', 'fromClassName', 'toClassId', 'toClassName', 'academicYearId', 'decision', 'notes', 'decidedBy', 'decidedAt'])
+        && isValidId(data.pupilId)
+        && (!('pupilName' in data) || isOptionalString(data.pupilName, 200))
+        && isValidId(data.fromClassId)
+        && (!('fromClassName' in data) || isOptionalString(data.fromClassName, 60))
+        && (!('toClassId' in data) || isOptionalString(data.toClassId, 128))
+        && (!('toClassName' in data) || isOptionalString(data.toClassName, 60))
+        && isValidId(data.academicYearId)
+        && data.decision in ['Promoted', 'Retained', 'Graduated', 'Returned']
+        && (!('notes' in data) || isOptionalString(data.notes, 400))
+        && isValidId(data.decidedBy)
+        && isNonEmptyString(data.decidedAt, 64);
+    }
+
+    function isValidAuditLog(data) {
+      return data.keys().hasAll(['actorUid', 'action', 'targetCollection', 'targetId', 'createdAt'])
+        && data.keys().hasOnly(['actorUid', 'actorName', 'actorEmail', 'actorRole', 'action', 'targetCollection', 'targetId', 'summary', 'createdAt'])
+        && isValidId(data.actorUid)
+        && data.actorUid == request.auth.uid
+        && (!('actorName' in data) || isOptionalString(data.actorName, 120))
+        && (!('actorEmail' in data) || isOptionalString(data.actorEmail, 200))
+        && (!('actorRole' in data) || isOptionalString(data.actorRole, 60))
+        && isNonEmptyString(data.action, 100)
+        && isNonEmptyString(data.targetCollection, 80)
+        && isNonEmptyString(data.targetId, 128)
+        && (!('summary' in data) || isOptionalString(data.summary, 500))
+        && isNonEmptyString(data.createdAt, 64);
+    }
+
+    function isValidSchool(data) {
+      return data.keys().hasAll(['name', 'primaryColor', 'accentColor', 'isActive', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'name', 'code', 'motto', 'address', 'telephone', 'email', 'logoUrl', 'primaryColor', 'accentColor', 'headteacherName', 'academicCoordinatorName', 'hasKg', 'hasPrimary', 'hasJhs', 'isLocked', 'lockNotice', 'isActive', 'createdAt', 'updatedAt'])
+        && (!('id' in data) || isValidId(data.id))
+        && isNonEmptyString(data.name, 150)
+        && (!('code' in data) || isOptionalString(data.code, 20))
+        && (!('motto' in data) || isOptionalString(data.motto, 200))
+        && (!('address' in data) || isOptionalString(data.address, 250))
+        && (!('telephone' in data) || isOptionalString(data.telephone, 50))
+        && (!('email' in data) || isOptionalString(data.email, 150))
+        && (!('logoUrl' in data) || isOptionalString(data.logoUrl, 65000))
+        && isNonEmptyString(data.primaryColor, 20)
+        && isNonEmptyString(data.accentColor, 20)
+        && (!('headteacherName' in data) || isOptionalString(data.headteacherName, 120))
+        && (!('academicCoordinatorName' in data) || isOptionalString(data.academicCoordinatorName, 120))
+        && (!('hasKg' in data) || data.hasKg is bool)
+        && (!('hasPrimary' in data) || data.hasPrimary is bool)
+        && (!('hasJhs' in data) || data.hasJhs is bool)
+        && (!('isLocked' in data) || data.isLocked is bool)
+        && (!('lockNotice' in data) || isOptionalString(data.lockNotice, 500))
+        && data.isActive is bool
+        && isNonEmptyString(data.createdAt, 64)
+        && isNonEmptyString(data.updatedAt, 64);
+    }
+
+    function isValidTeacherAccount(data) {
+      return data.keys().hasAll(['schoolId', 'fullName', 'teacherType', 'isActive', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'schoolId', 'fullName', 'staffId', 'email', 'phone', 'teacherType', 'assignedClassIds', 'assignedSubjectIds', 'jhsAssignments', 'signatureUrl', 'isActive', 'createdAt', 'updatedAt'])
+        && (!('id' in data) || isValidId(data.id))
+        && isValidId(data.schoolId)
+        && isNonEmptyString(data.fullName, 150)
+        && (!('staffId' in data) || isOptionalString(data.staffId, 40))
+        && (!('email' in data) || isOptionalString(data.email, 150))
+        && (!('phone' in data) || isOptionalString(data.phone, 40))
+        && data.teacherType in ['CLASS', 'JHS']
+        && (!('assignedClassIds' in data) || isBoundedList(data.assignedClassIds, 30))
+        && (!('assignedSubjectIds' in data) || isBoundedList(data.assignedSubjectIds, 40))
+        && (!('jhsAssignments' in data) || isBoundedList(data.jhsAssignments, 60))
+        && (!('signatureUrl' in data) || isOptionalString(data.signatureUrl, 65000))
+        && data.isActive is bool
+        && isNonEmptyString(data.createdAt, 64)
+        && isNonEmptyString(data.updatedAt, 64);
+    }
+
+    // =========================================================================
+    // Collection Match Rules
+    // =========================================================================
+
+    // Users & Roles (PII protected: get restricted to owner or leadership; list restricted to leadership)
+    match /users/{uid} {
+      allow get: if isVerified() && isValidId(uid) && (isOwner(uid) || isSchoolAdmin() || isHeadteacher());
+      allow list: if isVerified() && (isSchoolAdmin() || isHeadteacher());
+      allow create: if isVerified() && isValidId(uid) && isOwner(uid) && isValidUserProfile(incoming())
+        && incoming().uid == request.auth.uid
+        && (
+          (isBootstrapAdmin() && incoming().role == 'School Administrator' && incoming().isActive == true)
+          || (incoming().role == 'Pending' && incoming().isActive == false)
+        );
+      allow update: if isVerified() && isValidId(uid) && isValidUserProfile(incoming())
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && (
+          isSchoolAdmin()
+          || (isOwner(uid) && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'updatedAt']))
+        );
+      allow delete: if isSchoolAdmin() && isValidId(uid) && uid != request.auth.uid;
+    }
+
+    // School Settings
+    match /schoolSettings/{settingId} {
+      allow get: if isVerified() && isValidId(settingId) && isActiveStaff();
+      allow list: if isVerified() && isActiveStaff();
+      allow create, update: if isVerified() && isValidId(settingId) && isValidSchoolSettings(incoming())
+        && (isSchoolAdmin() || isHeadteacher());
+      allow delete: if false;
+    }
+
+    // Academic Years
+    match /academicYears/{yearId} {
+      allow get: if isVerified() && isValidId(yearId) && isActiveStaff();
+      allow list: if isVerified() && isActiveStaff();
+      allow create: if isVerified() && isValidId(yearId) && isValidAcademicYear(incoming()) && isLeadership();
+      allow update: if isVerified() && isValidId(yearId) && isValidAcademicYear(incoming())
+        && incoming().createdAt == existing().createdAt && isLeadership();
+      allow delete: if isSchoolAdmin() && isValidId(yearId);
+    }
+
+    // Terms
+    match /terms/{termId} {
+      allow get: if isVerified() && isValidId(termId) && isActiveStaff();
+      allow list: if isVerified() && isActiveStaff();
+      allow create: if isVerified() && isValidId(termId) && isValidTerm(incoming()) && isLeadership()
+        && existsAfter(/databases/$(database)/documents/academicYears/$(incoming().academicYearId));
+      allow update: if isVerified() && isValidId(termId) && isValidTerm(incoming())
+        && incoming().createdAt == existing().createdAt && isLeadership();
+      allow delete: if isSchoolAdmin() && isValidId(termId);
+    }
+
+    // Classes (KG 1 - JHS 3)
+    match /classes/{classId} {
+      allow get: if isVerified() && isValidId(classId) && isActiveStaff();
+      allow list: if isVerified() && isActiveStaff();
+      allow create: if isVerified() && isValidId(classId) && isValidSchoolClass(incoming()) && isLeadership();
+      allow update: if isVerified() && isValidId(classId) && isValidSchoolClass(incoming())
+        && incoming().createdAt == existing().createdAt && isLeadership();
+      allow delete: if isSchoolAdmin() && isValidId(classId);
+    }
+
+    // Subjects (Only School Administrator can add, edit, or delete)
+    match /subjects/{subjectId} {
+      allow get: if isVerified() && isValidId(subjectId) && isActiveStaff();
+      allow list: if isVerified() && isActiveStaff();
+      allow create: if isVerified() && isValidId(subjectId) && isValidSubject(incoming()) && isSchoolAdmin();
+      allow update: if isVerified() && isValidId(subjectId) && isValidSubject(incoming())
+        && incoming().createdAt == existing().createdAt && isSchoolAdmin();
+      allow delete: if isSchoolAdmin() && isValidId(subjectId);
+    }
+
+    // Kindergarten Learning Areas
+    match /learningAreas/{areaId} {
+      allow get: if isVerified() && isValidId(areaId) && isActiveStaff();
+      allow list: if isVerified() && isActiveStaff();
+      allow create: if isVerified() && isValidId(areaId) && isValidLearningArea(incoming()) && isLeadership();
+      allow update: if isVerified() && isValidId(areaId) && isValidLearningArea(incoming())
+        && incoming().createdAt == existing().createdAt && isLeadership();
+      allow delete: if isSchoolAdmin() && isValidId(areaId);
+    }
+
+    // Assessment Weightings & KG Scale Configs
+    match /assessmentConfigs/{configId} {
+      allow get: if isVerified() && isValidId(configId) && isActiveStaff();
+      allow list: if isVerified() && isActiveStaff();
+      allow create: if isVerified() && isValidId(configId) && isValidAssessmentConfig(incoming()) && isLeadership();
+      allow update: if isVerified() && isValidId(configId) && isValidAssessmentConfig(incoming())
+        && incoming().createdAt == existing().createdAt && isLeadership();
+      allow delete: if isSchoolAdmin() && isValidId(configId);
+    }
+
+    // Configurable Grading Scales
+    match /gradingScales/{scaleId} {
+      allow get: if isVerified() && isValidId(scaleId) && isActiveStaff();
+      allow list: if isVerified() && isActiveStaff();
+      allow create: if isVerified() && isValidId(scaleId) && isValidGradingScale(incoming()) && isLeadership();
+      allow update: if isVerified() && isValidId(scaleId) && isValidGradingScale(incoming())
+        && incoming().createdAt == existing().createdAt && isLeadership();
+      allow delete: if isSchoolAdmin() && isValidId(scaleId);
+    }
+
+    // Pupils
+    match /pupils/{pupilId} {
+      allow get: if isVerified() && isValidId(pupilId) && isActiveStaff();
+      allow list: if isVerified() && isActiveStaff();
+      allow create: if isVerified() && isValidId(pupilId) && isValidPupil(incoming())
+        && (isLeadership() || isClassTeacherFor(incoming().currentClassId))
+        && existsAfter(/databases/$(database)/documents/classes/$(incoming().currentClassId));
+      allow update: if isVerified() && isValidId(pupilId) && isValidPupil(incoming())
+        && incoming().createdAt == existing().createdAt
+        && (
+          isLeadership()
+          || (
+            isClassTeacherFor(existing().currentClassId)
+            && incoming().currentClassId == existing().currentClassId
+            && incoming().enrollmentStatus == existing().enrollmentStatus
+          )
+        );
+      allow delete: if isSchoolAdmin() && isValidId(pupilId);
+    }
+
+    // Primary & JHS Subject Assessment Records
+    match /assessmentRecords/{recordId} {
+      allow get: if isVerified() && isValidId(recordId) && isActiveStaff();
+      allow list: if isVerified() && isActiveStaff();
+      allow create: if isVerified() && isValidId(recordId) && isValidAssessmentRecord(incoming())
+        && incoming().updatedBy == request.auth.uid
+        && (isLeadership() || isClassTeacherFor(incoming().classId) || isSubjectTeacherFor(incoming().classId, incoming().subjectId));
+      allow update: if isVerified() && isValidId(recordId) && isValidAssessmentRecord(incoming())
+        && incoming().updatedBy == request.auth.uid
+        && incoming().pupilId == existing().pupilId
+        && incoming().classId == existing().classId
+        && incoming().academicYearId == existing().academicYearId
+        && incoming().termId == existing().termId
+        && incoming().subjectId == existing().subjectId
+        && (isLeadership() || isClassTeacherFor(existing().classId) || isSubjectTeacherFor(existing().classId, existing().subjectId));
+      allow delete: if isLeadership() && isValidId(recordId);
+    }
+
+    // Kindergarten Competency Ratings
+    match /competencyRatings/{ratingId} {
+      allow get: if isVerified() && isValidId(ratingId) && isActiveStaff();
+      allow list: if isVerified() && isActiveStaff();
+      allow create: if isVerified() && isValidId(ratingId) && isValidCompetencyRating(incoming())
+        && incoming().updatedBy == request.auth.uid
+        && (isLeadership() || isClassTeacherFor(incoming().classId));
+      allow update: if isVerified() && isValidId(ratingId) && isValidCompetencyRating(incoming())
+        && incoming().updatedBy == request.auth.uid
+        && incoming().pupilId == existing().pupilId
+        && incoming().classId == existing().classId
+        && incoming().academicYearId == existing().academicYearId
+        && incoming().termId == existing().termId
+        && (isLeadership() || isClassTeacherFor(existing().classId));
+      allow delete: if isLeadership() && isValidId(ratingId);
+    }
+
+    // Personality & Behavior Assessments + Attendance
+    match /personalityAssessments/{assessmentId} {
+      allow get: if isVerified() && isValidId(assessmentId) && isActiveStaff();
+      allow list: if isVerified() && isActiveStaff();
+      allow create: if isVerified() && isValidId(assessmentId) && isValidPersonalityAssessment(incoming())
+        && incoming().updatedBy == request.auth.uid
+        && (isLeadership() || isClassTeacherFor(incoming().classId));
+      allow update: if isVerified() && isValidId(assessmentId) && isValidPersonalityAssessment(incoming())
+        && incoming().updatedBy == request.auth.uid
+        && incoming().pupilId == existing().pupilId
+        && incoming().classId == existing().classId
+        && incoming().academicYearId == existing().academicYearId
+        && incoming().termId == existing().termId
+        && (isLeadership() || isClassTeacherFor(existing().classId));
+      allow delete: if isLeadership() && isValidId(assessmentId);
+    }
+
+    // Report Cards & Approval Workflow
+    match /reportCards/{reportId} {
+      allow get: if isVerified() && isValidId(reportId) && isActiveStaff();
+      allow list: if isVerified() && isActiveStaff();
+      allow create: if isVerified() && isValidId(reportId) && isValidReportCard(incoming())
+        && (
+          isSchoolAdmin() || isHeadteacher()
+          || (
+            (isAcademicCoordinator() || isClassTeacherFor(incoming().classId))
+            && incoming().status in ['Draft', 'Submitted']
+            && (!('promotionStatus' in incoming()) || incoming().promotionStatus == 'Pending')
+          )
+        );
+      allow update: if isVerified() && isValidId(reportId) && isValidReportCard(incoming())
+        && incoming().pupilId == existing().pupilId
+        && incoming().classId == existing().classId
+        && incoming().academicYearId == existing().academicYearId
+        && incoming().termId == existing().termId
+        && (
+          isSchoolAdmin() || isHeadteacher()
+          || (
+            (isAcademicCoordinator() || isClassTeacherFor(existing().classId))
+            && existing().status in ['Draft', 'Returned for Correction']
+            && incoming().status in ['Draft', 'Submitted']
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'pupilName', 'admissionNumber', 'gender', 'photoUrl', 'className',
+              'assessmentMode', 'academicYearName', 'termName', 'overallAverage', 'classAverage',
+              'classPosition', 'totalPupilsInClass', 'subjectSnapshots', 'kgSnapshots',
+              'personalitySnapshot', 'attendancePresent', 'attendanceTotal',
+              'teacherRemarks', 'strengthNotes', 'improvementNotes', 'parentRecommendation',
+              'aiGeneratedDraft', 'aiReviewedApproved', 'reopeningDate',
+              'teacherSignatureUrl', 'status', 'submittedBy', 'updatedAt'
+            ])
+          )
+        );
+      allow delete: if isSchoolAdmin() && isValidId(reportId);
+    }
+
+    // Promotion Records (Authorized only)
+    match /promotionRecords/{promoId} {
+      allow get: if isVerified() && isValidId(promoId) && isActiveStaff();
+      allow list: if isVerified() && isActiveStaff();
+      allow create: if isVerified() && isValidId(promoId) && isValidPromotionRecord(incoming())
+        && incoming().decidedBy == request.auth.uid
+        && (isSchoolAdmin() || isHeadteacher() || isAcademicCoordinator());
+      allow update, delete: if isSchoolAdmin() && isValidId(promoId);
+    }
+
+    // Immutable Audit Logs
+    match /auditLogs/{logId} {
+      allow get: if isVerified() && isValidId(logId) && (isSchoolAdmin() || isHeadteacher());
+      allow list: if isVerified() && (isSchoolAdmin() || isHeadteacher());
+      allow create: if isVerified() && isValidId(logId) && isActiveStaff() && isValidAuditLog(incoming());
+      allow update, delete: if false;
+    }
+
+    // Registered School (Non-secret metadata only)
+    match /schools/{schoolId} {
+      allow get: if isVerified() && isValidId(schoolId) && isActiveStaff();
+      allow list: if isVerified() && isActiveStaff();
+      allow create, update: if isSchoolAdmin() && isValidId(schoolId) && isValidSchool(incoming());
+      allow delete: if isSchoolAdmin() && isValidId(schoolId);
+    }
+
+    // Registered Teachers (Non-secret assignment metadata only)
+    match /teachers/{teacherId} {
+      allow get: if isVerified() && isValidId(teacherId) && isActiveStaff();
+      allow list: if isVerified() && isActiveStaff();
+      allow create, update: if (isSchoolAdmin() || isHeadteacher()) && isValidId(teacherId) && isValidTeacherAccount(incoming());
+      allow delete: if (isSchoolAdmin() || isHeadteacher()) && isValidId(teacherId);
+    }
+  }
+}
